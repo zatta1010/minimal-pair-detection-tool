@@ -22,7 +22,11 @@
             height: 150px;
             padding: 5px;
         }
-        .result-pair {
+        #results ul, #uniqueWordsList ul { /* uniqueWordsList の ul もスタイル */
+            list-style-type: none; /* デフォルトのリストスタイルをなくす */
+            padding: 0;
+        }
+        #results li, #uniqueWordsList li { /* uniqueWordsList の li もスタイル */
             margin-bottom: 5px;
             padding: 5px;
             border: 1px solid #ccc;
@@ -57,6 +61,14 @@
 
     <div id="results">
         </div>
+
+    ---
+
+    <div id="uniqueWordsContainer">
+        <h2>検出されたユニークな単語:</h2>
+        <div id="uniqueWordsList">
+            </div>
+    </div>
 
     <script>
         // レーベンシュタイン距離を計算する関数
@@ -97,17 +109,16 @@
         document.addEventListener('DOMContentLoaded', () => {
             const detectButton = document.getElementById('detectButton');
             const resultsDiv = document.getElementById('results');
+            const uniqueWordsListDiv = document.getElementById('uniqueWordsList'); // ユニーク単語表示エリアのDOM要素を取得
 
             detectButton.addEventListener('click', () => {
                 const maxDistance = parseInt(document.getElementById('levenshteinDistance').value);
                 const minLength = parseInt(document.getElementById('minLength').value);
                 const maxLength = parseInt(document.getElementById('maxLength').value);
 
-                // 空行を除外し、トリムして重複をなくす
                 const rawWords = document.getElementById('wordList').value.split('\n');
                 let words = Array.from(new Set(rawWords.map(word => word.trim()).filter(word => word !== '')));
 
-                // 文字数によるフィルタリング
                 if (minLength > 0 || maxLength > 0) {
                     words = words.filter(word => {
                         const len = word.length;
@@ -119,62 +130,55 @@
 
                 if (words.length < 2) {
                     resultsDiv.innerHTML = '<p style="color: red;">文字数範囲でフィルタリング後、2つ以上の単語が残っていません。単語リストを確認してください。</p>';
+                    uniqueWordsListDiv.innerHTML = ''; // クリア
                     return;
                 }
 
                 if (isNaN(maxDistance) || maxDistance < 0) {
                     resultsDiv.innerHTML = '<p style="color: red;">有効なレーベンシュタイン距離を入力してください（0以上の数値）。</p>';
+                    uniqueWordsListDiv.innerHTML = ''; // クリア
                     return;
                 }
                 
                 if (isNaN(minLength) || minLength < 0 || isNaN(maxLength) || maxLength < 0) {
                     resultsDiv.innerHTML = '<p style="color: red;">有効な文字数範囲を入力してください（0以上の数値）。</p>';
+                    uniqueWordsListDiv.innerHTML = ''; // クリア
                     return;
                 }
 
                 if (maxLength > 0 && minLength > 0 && minLength > maxLength) {
                     resultsDiv.innerHTML = '<p style="color: red;">最小文字数が最大文字数を超えています。設定を確認してください。</p>';
+                    uniqueWordsListDiv.innerHTML = ''; // クリア
                     return;
                 }
 
+                resultsDiv.innerHTML = '<h2>検出されたペア:</h2>';
+                const resultList = document.createElement('ul');
+                resultsDiv.appendChild(resultList);
 
-                resultsDiv.innerHTML = '<h2>検出結果:</h2>';
                 let foundPairs = 0;
+                const uniqueDetectedWords = new Set(); // 検出されたユニークな単語を格納するSet
 
-                // 全ての単語ペアを比較
                 for (let i = 0; i < words.length; i++) {
                     for (let j = i + 1; j < words.length; j++) {
                         const word1 = words[i];
                         const word2 = words[j];
 
-                        // 同じ単語同士は比較しない（Setで重複は除去済みだが念のため）
                         if (word1 === word2) {
                             continue;
                         }
-                        
-                        // 文字数フィルタリングが既に適用されているため、ここで再確認は不要だが、念のため
-                        // 両方の単語が文字数範囲内に収まっていることを確認
-                        // この部分は、上のフィルタリングで処理されているため、理論的には不要。
-                        // しかし、ロジックが複雑になった際にバグを防ぐ意味で残すこともありうる。
-                        // 今回は既にフィルタリング済みなので、コメントアウトするか削除しても良い。
-                        // const len1 = word1.length;
-                        // const len2 = word2.length;
-                        // const meetsLengthCriteria = 
-                        //     ((minLength === 0 || (len1 >= minLength && len2 >= minLength)) &&
-                        //      (maxLength === 0 || (len1 <= maxLength && len2 <= maxLength)));
-                        
-                        // if (!meetsLengthCriteria) {
-                        //     continue;
-                        // }
 
                         const distance = levenshteinDistance(word1, word2);
 
                         if (distance <= maxDistance) {
-                            const pairDiv = document.createElement('div');
-                            pairDiv.className = 'result-pair';
-                            pairDiv.innerHTML = `<strong>${word1}</strong> と <strong>${word2}</strong>: 距離 ${distance}`;
-                            resultsDiv.appendChild(pairDiv);
+                            const listItem = document.createElement('li');
+                            listItem.innerHTML = `<strong>${word1}</strong> と <strong>${word2}</strong>: 距離 ${distance}`;
+                            resultList.appendChild(listItem);
                             foundPairs++;
+
+                            // 検出された単語をユニークなSetに追加
+                            uniqueDetectedWords.add(word1);
+                            uniqueDetectedWords.add(word2);
                         }
                     }
                 }
@@ -183,6 +187,21 @@
                     resultsDiv.innerHTML += '<p>指定されたレーベンシュタイン距離範囲内で、最小対立の単語ペアは見つかりませんでした。</p>';
                 } else {
                     resultsDiv.innerHTML += `<p>合計 ${foundPairs} 組の単語ペアが見つかりました。</p>`;
+                }
+
+                // ユニークな単語リストの表示
+                uniqueWordsListDiv.innerHTML = ''; // まずクリア
+                if (uniqueDetectedWords.size > 0) {
+                    const uniqueUl = document.createElement('ul');
+                    // ソートして表示したい場合は、ここで Array.from(uniqueDetectedWords).sort() を使う
+                    Array.from(uniqueDetectedWords).sort().forEach(word => { // アルファベット順にソートして表示
+                        const li = document.createElement('li');
+                        li.textContent = word;
+                        uniqueUl.appendChild(li);
+                    });
+                    uniqueWordsListDiv.appendChild(uniqueUl);
+                } else {
+                    uniqueWordsListDiv.innerHTML = '<p>検出されたユニークな単語はありません。</p>';
                 }
             });
         });
