@@ -39,6 +39,16 @@
     </div>
 
     <div>
+        <label for="minLength">最小文字数 (0で無制限):</label>
+        <input type="number" id="minLength" value="0" min="0">
+    </div>
+
+    <div>
+        <label for="maxLength">最大文字数 (0で無制限):</label>
+        <input type="number" id="maxLength" value="0" min="0">
+    </div>
+
+    <div>
         <label for="wordList">単語リスト（改行区切りで入力）:</label>
         <textarea id="wordList" placeholder="例:&#10;あめ&#10;かめ&#10;さめ&#10;ねこ"></textarea>
     </div>
@@ -50,7 +60,6 @@
 
     <script>
         // レーベンシュタイン距離を計算する関数
-        // 参照: https://en.wikipedia.org/wiki/Levenshtein_distance
         function levenshteinDistance(a, b) {
             const an = a.length;
             const bn = b.length;
@@ -91,12 +100,25 @@
 
             detectButton.addEventListener('click', () => {
                 const maxDistance = parseInt(document.getElementById('levenshteinDistance').value);
+                const minLength = parseInt(document.getElementById('minLength').value);
+                const maxLength = parseInt(document.getElementById('maxLength').value);
+
                 // 空行を除外し、トリムして重複をなくす
                 const rawWords = document.getElementById('wordList').value.split('\n');
-                const words = Array.from(new Set(rawWords.map(word => word.trim()).filter(word => word !== '')));
+                let words = Array.from(new Set(rawWords.map(word => word.trim()).filter(word => word !== '')));
+
+                // 文字数によるフィルタリング
+                if (minLength > 0 || maxLength > 0) {
+                    words = words.filter(word => {
+                        const len = word.length;
+                        const meetsMin = (minLength === 0 || len >= minLength);
+                        const meetsMax = (maxLength === 0 || len <= maxLength);
+                        return meetsMin && meetsMax;
+                    });
+                }
 
                 if (words.length < 2) {
-                    resultsDiv.innerHTML = '<p style="color: red;">2つ以上の単語を入力してください。</p>';
+                    resultsDiv.innerHTML = '<p style="color: red;">文字数範囲でフィルタリング後、2つ以上の単語が残っていません。単語リストを確認してください。</p>';
                     return;
                 }
 
@@ -104,20 +126,46 @@
                     resultsDiv.innerHTML = '<p style="color: red;">有効なレーベンシュタイン距離を入力してください（0以上の数値）。</p>';
                     return;
                 }
+                
+                if (isNaN(minLength) || minLength < 0 || isNaN(maxLength) || maxLength < 0) {
+                    resultsDiv.innerHTML = '<p style="color: red;">有効な文字数範囲を入力してください（0以上の数値）。</p>';
+                    return;
+                }
+
+                if (maxLength > 0 && minLength > 0 && minLength > maxLength) {
+                    resultsDiv.innerHTML = '<p style="color: red;">最小文字数が最大文字数を超えています。設定を確認してください。</p>';
+                    return;
+                }
+
 
                 resultsDiv.innerHTML = '<h2>検出結果:</h2>';
                 let foundPairs = 0;
 
                 // 全ての単語ペアを比較
                 for (let i = 0; i < words.length; i++) {
-                    for (let j = i + 1; j < words.length; j++) { // 重複ペアを防ぐため j = i + 1 から
+                    for (let j = i + 1; j < words.length; j++) {
                         const word1 = words[i];
                         const word2 = words[j];
 
-                        // 同じ単語同士は比較しない
+                        // 同じ単語同士は比較しない（Setで重複は除去済みだが念のため）
                         if (word1 === word2) {
                             continue;
                         }
+                        
+                        // 文字数フィルタリングが既に適用されているため、ここで再確認は不要だが、念のため
+                        // 両方の単語が文字数範囲内に収まっていることを確認
+                        // この部分は、上のフィルタリングで処理されているため、理論的には不要。
+                        // しかし、ロジックが複雑になった際にバグを防ぐ意味で残すこともありうる。
+                        // 今回は既にフィルタリング済みなので、コメントアウトするか削除しても良い。
+                        // const len1 = word1.length;
+                        // const len2 = word2.length;
+                        // const meetsLengthCriteria = 
+                        //     ((minLength === 0 || (len1 >= minLength && len2 >= minLength)) &&
+                        //      (maxLength === 0 || (len1 <= maxLength && len2 <= maxLength)));
+                        
+                        // if (!meetsLengthCriteria) {
+                        //     continue;
+                        // }
 
                         const distance = levenshteinDistance(word1, word2);
 
