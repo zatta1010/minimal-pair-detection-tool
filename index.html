@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最小対立検出ツール</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+        label, input, textarea, button {
+            display: block;
+            margin-bottom: 10px;
+        }
+        input[type="number"] {
+            width: 100px;
+            padding: 5px;
+        }
+        textarea {
+            width: 300px;
+            height: 150px;
+            padding: 5px;
+        }
+        .result-pair {
+            margin-bottom: 5px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <h1>最小対立検出ツール</h1>
+
+    <div>
+        <label for="levenshteinDistance">検出するレーベンシュタイン距離:</label>
+        <input type="number" id="levenshteinDistance" value="1" min="0">
+    </div>
+
+    <div>
+        <label for="wordList">単語リスト（改行区切りで入力）:</label>
+        <textarea id="wordList" placeholder="例:&#10;あめ&#10;かめ&#10;さめ&#10;ねこ"></textarea>
+    </div>
+
+    <button id="detectButton">最小対立を検出</button>
+
+    <div id="results">
+        </div>
+
+    <script>
+        // レーベンシュタイン距離を計算する関数
+        // 参照: https://en.wikipedia.org/wiki/Levenshtein_distance
+        function levenshteinDistance(a, b) {
+            const an = a.length;
+            const bn = b.length;
+
+            if (an === 0) return bn;
+            if (bn === 0) return an;
+
+            const matrix = [];
+
+            // increment along the first column of each row
+            for (let i = 0; i <= an; i++) {
+                matrix[i] = [i];
+            }
+
+            // increment each column in the first row
+            for (let j = 0; j <= bn; j++) {
+                matrix[0][j] = j;
+            }
+
+            // Fill in the rest of the matrix
+            for (let i = 1; i <= an; i++) {
+                for (let j = 1; j <= bn; j++) {
+                    const cost = (a[i - 1] === b[j - 1]) ? 0 : 1;
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j] + 1,      // deletion
+                        matrix[i][j - 1] + 1,      // insertion
+                        matrix[i - 1][j - 1] + cost // substitution
+                    );
+                }
+            }
+
+            return matrix[an][bn];
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const detectButton = document.getElementById('detectButton');
+            const resultsDiv = document.getElementById('results');
+
+            detectButton.addEventListener('click', () => {
+                const maxDistance = parseInt(document.getElementById('levenshteinDistance').value);
+                // 空行を除外し、トリムして重複をなくす
+                const rawWords = document.getElementById('wordList').value.split('\n');
+                const words = Array.from(new Set(rawWords.map(word => word.trim()).filter(word => word !== '')));
+
+                if (words.length < 2) {
+                    resultsDiv.innerHTML = '<p style="color: red;">2つ以上の単語を入力してください。</p>';
+                    return;
+                }
+
+                if (isNaN(maxDistance) || maxDistance < 0) {
+                    resultsDiv.innerHTML = '<p style="color: red;">有効なレーベンシュタイン距離を入力してください（0以上の数値）。</p>';
+                    return;
+                }
+
+                resultsDiv.innerHTML = '<h2>検出結果:</h2>';
+                let foundPairs = 0;
+
+                // 全ての単語ペアを比較
+                for (let i = 0; i < words.length; i++) {
+                    for (let j = i + 1; j < words.length; j++) { // 重複ペアを防ぐため j = i + 1 から
+                        const word1 = words[i];
+                        const word2 = words[j];
+
+                        // 同じ単語同士は比較しない
+                        if (word1 === word2) {
+                            continue;
+                        }
+
+                        const distance = levenshteinDistance(word1, word2);
+
+                        if (distance <= maxDistance) {
+                            const pairDiv = document.createElement('div');
+                            pairDiv.className = 'result-pair';
+                            pairDiv.innerHTML = `<strong>${word1}</strong> と <strong>${word2}</strong>: 距離 ${distance}`;
+                            resultsDiv.appendChild(pairDiv);
+                            foundPairs++;
+                        }
+                    }
+                }
+
+                if (foundPairs === 0) {
+                    resultsDiv.innerHTML += '<p>指定されたレーベンシュタイン距離範囲内で、最小対立の単語ペアは見つかりませんでした。</p>';
+                } else {
+                    resultsDiv.innerHTML += `<p>合計 ${foundPairs} 組の単語ペアが見つかりました。</p>`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
